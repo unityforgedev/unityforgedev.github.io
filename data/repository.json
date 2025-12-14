@@ -1,5 +1,6 @@
 {
   "repositories": [
-    "https://github.com/unityforgedev/rest-api-playmaker"
+    "https://github.com/unityforgedev/rest-api-playmaker",
+    "https://github.com/unityforgedev/json-parser-playmaker"
   ]
 }
