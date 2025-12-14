@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unity Forge - Test Page</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">Unity Forge - TEST MODE</div>
+        </div>
+    </nav>
+
+    <main class="main-container">
+        <div class="header-section">
+            <h1>Testing Package Loader</h1>
+            <p>Check browser console (F12) for detailed logs</p>
+        </div>
+
+        <div style="background: #f5f5f5; padding: 1rem; border: 2px solid #000; border-radius: 8px; margin-bottom: 2rem;">
+            <h3>Debug Information:</h3>
+            <div id="debugInfo" style="font-family: monospace; white-space: pre-wrap;"></div>
+        </div>
+
+        <div id="packagesContainer" class="packages-grid"></div>
+        <div id="loadingSpinner" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Loading packages...</p>
+        </div>
+        <div id="errorMessage" class="error-message hidden"></div>
+    </main>
+
+    <script>
+        // Inline test script
+        const debugInfo = document.getElementById('debugInfo');
+        
+        function log(message) {
+            console.log(message);
+            debugInfo.textContent += message + '\n';
+        }
+
+        async function testManifestLoad() {
+            const testUrl = 'https://raw.githubusercontent.com/unityforgedev/rest-api-playmaker/main/manifest.json';
+            
+            log('Testing direct manifest fetch...');
+            log('URL: ' + testUrl);
+            
+            try {
+                const response = await fetch(testUrl);
+                log('Response status: ' + response.status);
+                log('Response ok: ' + response.ok);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ SUCCESS! Manifest loaded:');
+                    log(JSON.stringify(data, null, 2));
+                    
+                    // Try to create a card
+                    createTestCard(data);
+                } else {
+                    log('❌ FAILED: ' + response.statusText);
+                }
+            } catch (error) {
+                log('❌ ERROR: ' + error.message);
+            }
+        }
+
+        async function createTestCard(pkg) {
+            const container = document.getElementById('packagesContainer');
+            const card = document.createElement('div');
+            card.className = 'package-card';
+
+            card.innerHTML = `
+                <div class="card-image">
+                    <img src="${pkg.icon || 'https://via.placeholder.com/400x200?text=No+Image'}" 
+                         alt="${pkg.name}" 
+                         onerror="this.src='https://via.placeholder.com/400x200?text=No+Image'">
+                </div>
+                <div class="card-content">
+                    <div class="card-header">
+                        <h2 class="package-name">${pkg.name}</h2>
+                        <p class="package-author">by ${pkg.author}</p>
+                        <p class="package-description">${pkg.description}</p>
+                    </div>
+                    
+                    <div class="package-meta">
+                        <span class="status-badge">${pkg.status || 'unknown'}</span>
+                        <span class="version-tag">v${pkg.version}</span>
+                        <span class="download-count">
+                            <i class="fas fa-download"></i> Testing...
+                        </span>
+                    </div>
+
+                    <div class="package-tags">
+                        ${pkg.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                    </div>
+
+                    <div class="card-actions">
+                        <a href="${pkg.links.download}" class="action-btn" download>
+                            <i class="fas fa-download"></i>
+                        </a>
+                        <a href="${pkg.links.github}" class="action-btn" target="_blank">
+                            <i class="fab fa-github"></i>
+                        </a>
+                        <a href="${pkg.links.documentation}" class="action-btn" target="_blank">
+                            <i class="fas fa-book"></i>
+                        </a>
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(card);
+            log('\n✅ Card created successfully!');
+        }
+
+        // Run test on load
+        window.addEventListener('DOMContentLoaded', testManifestLoad);
+    </script>
+</body>
+</html>
