@@ -220,7 +220,6 @@ class RepositoryLoader {
                 <div class="package-meta">
                     <span class="status-badge">${pkg.status || 'unknown'}</span>
                     <span class="version-tag">v${pkg.version}</span>
-                    ${pkg.unity ? `<span class="unity-version">Unity ${pkg.unity}+</span>` : ''}
                     <span class="download-count">
                         <i class="fas fa-download"></i> ${downloadCounter.formatCount(downloadCount)}
                     </span>
