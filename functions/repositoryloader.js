@@ -149,9 +149,10 @@ class RepositoryLoader {
             const manifest = await response.json();
             console.log('Manifest loaded:', manifest.name);
             
-            // Collect tags
-            if (manifest.tags && Array.isArray(manifest.tags)) {
-                manifest.tags.forEach(tag => this.allTags.add(tag));
+            // Collect tags from keywords field (new format) or tags field (old format)
+            const tags = manifest.keywords || manifest.tags;
+            if (tags && Array.isArray(tags)) {
+                tags.forEach(tag => this.allTags.add(tag));
             }
 
             return manifest;
@@ -196,30 +197,37 @@ class RepositoryLoader {
             downloadCount = await downloadCounter.fetchDownloadCount(pkg.links.release);
         }
 
+        // Support both old and new formats
+        const displayName = pkg.displayName || pkg.name;
+        const packageName = pkg.name;
+        const authorName = pkg.author?.name || pkg.author || 'Unknown';
+        const tags = pkg.keywords || pkg.tags || [];
+
         // Create card HTML
         card.innerHTML = `
             <div class="card-image">
                 <img src="${pkg.icon || 'https://via.placeholder.com/400x200?text=No+Image'}" 
-                     alt="${pkg.name}" 
+                     alt="${displayName}" 
                      onerror="this.src='https://via.placeholder.com/400x200?text=No+Image'">
             </div>
             <div class="card-content">
                 <div class="card-header">
-                    <h2 class="package-name">${pkg.name}</h2>
-                    <p class="package-author">by ${pkg.author}</p>
+                    <h2 class="package-name">${displayName}</h2>
+                    <p class="package-author">by ${authorName}</p>
                     <p class="package-description">${pkg.description}</p>
                 </div>
                 
                 <div class="package-meta">
                     <span class="status-badge">${pkg.status || 'unknown'}</span>
                     <span class="version-tag">v${pkg.version}</span>
+                    ${pkg.unity ? `<span class="unity-version">Unity ${pkg.unity}+</span>` : ''}
                     <span class="download-count">
                         <i class="fas fa-download"></i> ${downloadCounter.formatCount(downloadCount)}
                     </span>
                 </div>
 
                 <div class="package-tags">
-                    ${this.renderTags(pkg.tags)}
+                    ${this.renderTags(tags)}
                 </div>
 
                 <div class="card-actions">
@@ -331,15 +339,21 @@ class RepositoryLoader {
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
 
         this.filteredPackages = this.packages.filter(pkg => {
+            // Support both old and new formats for search
+            const displayName = pkg.displayName || pkg.name;
+            const authorName = pkg.author?.name || pkg.author || '';
+            const tags = pkg.keywords || pkg.tags || [];
+
             // Search filter
             const matchesSearch = !searchTerm || 
                 pkg.name.toLowerCase().includes(searchTerm) ||
+                displayName.toLowerCase().includes(searchTerm) ||
                 pkg.description.toLowerCase().includes(searchTerm) ||
-                pkg.author.toLowerCase().includes(searchTerm);
+                authorName.toLowerCase().includes(searchTerm);
 
             // Tag filter
             const matchesTags = this.selectedTags.size === 0 || 
-                (pkg.tags && pkg.tags.some(tag => this.selectedTags.has(tag)));
+                (tags && tags.some(tag => this.selectedTags.has(tag)));
 
             return matchesSearch && matchesTags;
         });
