@@ -135,19 +135,19 @@ class RepositoryLoader {
             // Convert to raw URL if needed
             const rawUrl = this.convertToRawUrl(repoUrl);
             
-            // Construct manifest URL
-            const manifestUrl = `${rawUrl}/manifest.json`;
+            // Construct package.json URL (changed from manifest.json)
+            const packageUrl = `${rawUrl}/package.json`;
             
-            console.log('Fetching manifest from:', manifestUrl);
+            console.log('Fetching package.json from:', packageUrl);
             
-            const response = await fetch(manifestUrl);
+            const response = await fetch(packageUrl);
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
             const manifest = await response.json();
-            console.log('Manifest loaded:', manifest.name);
+            console.log('Package loaded:', manifest.name);
             
             // Collect tags from keywords field (new format) or tags field (old format)
             const tags = manifest.keywords || manifest.tags;
