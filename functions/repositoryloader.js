@@ -1,6 +1,7 @@
 /**
  * Repository Loader Module
  * Handles loading repositories, creating cards, search, and filtering
+ * Now with URL query parameter support for sharing
  */
 
 class RepositoryLoader {
@@ -51,6 +52,11 @@ class RepositoryLoader {
         // Clear filters
         const clearFilters = document.getElementById('clearFilters');
         clearFilters.addEventListener('click', () => this.clearFilters());
+        
+        // Handle browser back/forward buttons
+        window.addEventListener('popstate', () => {
+            this.loadFromURL();
+        });
     }
 
     /**
@@ -77,7 +83,9 @@ class RepositoryLoader {
             
             this.filteredPackages = [...this.packages];
             this.buildTagsList();
-            this.renderPackages();
+            
+            // Load from URL first, then render
+            this.loadFromURL();
             
         } catch (error) {
             this.showError(`Failed to load repositories: ${error.message}`);
@@ -165,6 +173,111 @@ class RepositoryLoader {
     }
 
     /**
+     * Load search and filter parameters from URL
+     */
+    loadFromURL() {
+        const params = new URLSearchParams(window.location.search);
+        const hash = window.location.hash.substring(1); // Remove the # symbol
+        
+        // Reset UI state first
+        this.selectedTags.clear();
+        document.getElementById('searchInput').value = '';
+        const tagButtons = document.querySelectorAll('.tag-filter');
+        tagButtons.forEach(btn => btn.classList.remove('active'));
+        
+        // Check if there's ONLY a hash (no search query or tags)
+        // This means someone shared a direct link to a specific package
+        if (hash && !params.toString()) {
+            // Filter to show only the specific package
+            this.filteredPackages = this.packages.filter(pkg => {
+                const cardId = pkg.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                return cardId === hash;
+            });
+            this.renderPackages();
+            
+            // Scroll to the package
+            setTimeout(() => {
+                const element = document.getElementById(hash);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    element.style.animation = 'highlight 2s ease';
+                }
+            }, 300);
+            return;
+        }
+        
+        // Load search query
+        const searchQuery = params.get('search') || params.get('q');
+        if (searchQuery) {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.value = searchQuery;
+        }
+
+        // Load tag filters
+        const tags = params.get('tags');
+        if (tags) {
+            const tagArray = tags.split(',').map(t => t.trim()).filter(t => t);
+            tagArray.forEach(tag => {
+                if (this.allTags.has(tag)) {
+                    this.selectedTags.add(tag);
+                }
+            });
+
+            // Update UI to show active tags
+            const newTagButtons = document.querySelectorAll('.tag-filter');
+            newTagButtons.forEach(btn => {
+                if (this.selectedTags.has(btn.textContent)) {
+                    btn.classList.add('active');
+                }
+            });
+        }
+
+        // Apply filters if any were loaded from URL, otherwise just render all
+        if (searchQuery || tags) {
+            this.applyFilters();
+        } else {
+            this.filteredPackages = [...this.packages];
+            this.renderPackages();
+        }
+
+        // Scroll to specific package if hash is present (with search/tags)
+        if (hash) {
+            setTimeout(() => {
+                const element = document.getElementById(hash);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    element.style.animation = 'highlight 2s ease';
+                }
+            }, 300);
+        }
+    }
+
+    /**
+     * Update URL with current search and filter state
+     */
+    updateURL() {
+        const params = new URLSearchParams();
+        
+        // Add search query
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput.value.trim()) {
+            params.set('search', searchInput.value.trim());
+        }
+
+        // Add selected tags
+        if (this.selectedTags.size > 0) {
+            params.set('tags', Array.from(this.selectedTags).sort().join(','));
+        }
+
+        // Update URL without reloading page
+        const newURL = params.toString() 
+            ? `${window.location.pathname}?${params.toString()}`
+            : window.location.pathname;
+        
+        window.history.pushState({}, '', newURL);
+    }
+
+    /**
      * Render all packages as cards
      */
     async renderPackages() {
@@ -190,6 +303,10 @@ class RepositoryLoader {
     async createPackageCard(pkg) {
         const card = document.createElement('div');
         card.className = 'package-card';
+        
+        // Create a URL-friendly ID from package name
+        const cardId = pkg.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        card.id = cardId;
 
         // Fetch download count
         let downloadCount = 0;
@@ -231,11 +348,82 @@ class RepositoryLoader {
 
                 <div class="card-actions">
                     ${this.renderActionButtons(pkg.links)}
+                    <button class="action-btn share-btn" title="Copy link to this package">
+                        <i class="fas fa-share-alt"></i>
+                    </button>
                 </div>
             </div>
         `;
 
+        // Add share button functionality only
+        const shareBtn = card.querySelector('.share-btn');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.sharePackage(cardId);
+            });
+        }
+
         return card;
+    }
+
+    /**
+     * Share a specific package by copying its URL to clipboard
+     * @param {string} packageId - Package card ID
+     */
+    async sharePackage(packageId) {
+        const url = `${window.location.origin}${window.location.pathname}#${packageId}`;
+        
+        try {
+            await navigator.clipboard.writeText(url);
+            this.showNotification('Link copied to clipboard!');
+        } catch (err) {
+            console.error('Failed to copy link:', err);
+            // Fallback for older browsers
+            const textarea = document.createElement('textarea');
+            textarea.value = url;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                this.showNotification('Link copied to clipboard!');
+            } catch (e) {
+                this.showNotification('Failed to copy link', true);
+            }
+            document.body.removeChild(textarea);
+        }
+    }
+
+    /**
+     * Show a temporary notification
+     * @param {string} message - Message to display
+     * @param {boolean} isError - Whether this is an error message
+     */
+    showNotification(message, isError = false) {
+        const notification = document.createElement('div');
+        notification.className = 'notification' + (isError ? ' error' : ' success');
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background: ${isError ? '#ef4444' : '#10b981'};
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10000;
+            animation: slideIn 0.3s ease;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
     }
 
     /**
@@ -316,6 +504,7 @@ class RepositoryLoader {
             button.classList.add('active');
         }
 
+        this.updateURL();
         this.applyFilters();
     }
 
@@ -328,7 +517,14 @@ class RepositoryLoader {
         const tagButtons = document.querySelectorAll('.tag-filter');
         tagButtons.forEach(btn => btn.classList.remove('active'));
 
-        this.applyFilters();
+        document.getElementById('searchInput').value = '';
+        
+        // Clear URL (including hash)
+        window.history.pushState({}, '', window.location.pathname);
+        
+        // Show all packages
+        this.filteredPackages = [...this.packages];
+        this.renderPackages();
     }
 
     /**
@@ -364,6 +560,7 @@ class RepositoryLoader {
      * Handle search input
      */
     handleSearch() {
+        this.updateURL();
         this.applyFilters();
     }
 
